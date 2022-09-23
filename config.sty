@@ -1,0 +1,113 @@
+\ProvidesPackage{config}
+
+\usepackage[a4paper]{geometry}
+\usepackage{afterpage} %\afterpage{clearpage}
+\usepackage{amsmath}
+\usepackage{bm}
+\usepackage{mathtools}
+\usepackage{siunitx}
+\usepackage{wrapfig}
+\usepackage{booktabs}
+\usepackage{epstopdf}
+\usepackage{adjustbox}
+\usepackage{lipsum}
+\usepackage{color}
+\usepackage{caption}
+\usepackage{amssymb}
+\usepackage{latexsym}
+\usepackage{ragged2e}
+\usepackage{float}
+\usepackage[utf8]{inputenc}
+\usepackage{graphicx}
+\usepackage[english]{babel}
+\usepackage[backend=biber, style=ieee]{biblatex}
+\addbibresource{/home/matteo/Documents/latex/bibliography.bib}
+\usepackage[hidelinks]{hyperref}
+
+\hypersetup{
+    pdffitwindow=true,
+    pdftitle={Variational Monte Carlo Study of Circular Quantum Dots},
+    pdfauthor={Matteo De Pellegrin},
+}
+
+\newcommand{\supervisor}[1]{\gdef\@supervisor{#1}}
+\newcommand{\nametitlefont}{\Large}
+%{\fontsize{16pt}{19.2pt}\selectfont}
+\newcommand{\namefont}{\LARGE}
+%{\fontsize{18pt}{21pt}\selectfont}
+
+\renewcommand{\maketitle}
+{
+  \begin{titlepage}
+    \begin{figure}[H]
+      \begin{center}
+	\includegraphics[width=\textwidth]{Images/logo.jpg}
+      \end{center}
+    \end{figure}
+    \par
+    \vskip 3em
+    \begin{center}
+    {\Large \textbf{DIPARTIMENTO DI FISICA}\par}
+    \end{center}\par
+    \vskip 2em
+    \begin{center}
+    {\Large \textbf{LAUREA IN FISICA}\par}
+    \end{center}\par
+    \vskip 3em
+    \begin{center}
+      {\fontsize{22pt}{26.4pt}\selectfont \textbf{\@title}\par}
+    \end{center}\par
+    \vskip 3em
+    \begin{minipage}{.6\textwidth}
+      \nametitlefont Supervisore:\\
+      \namefont \@supervisor\\
+    \end{minipage}
+    \begin{minipage}{.4\textwidth}
+      \nametitlefont Laureando:\\
+      \namefont \@author\\
+    \end{minipage}
+    \vfill
+    DATA ESAME FINALE: \@date\par
+  \end{titlepage}
+}
+
+% Interline
+
+% Custom commands
+
+% for equations
+\newcommand{\mc}[1]{\mathcal{#1}}
+\newcommand{\expval}[1]{\langle #1 \rangle}
+\newcommand{\sqmod}[1]{{| #1 |}^2}
+\newcommand{\norm}[1]{{\| #1 \|}}
+\newcommand{\bra}[1]{\langle #1 |}
+\newcommand{\ket}[1]{| #1 \rangle}
+\newcommand{\up}{\uparrow}
+\newcommand{\down}{\downarrow}
+
+% formatting
+\newcommand{\textimag}[5][1.0]
+{
+  \par\noindent
+  \adjustbox{valign=t}
+  {
+    \hspace{-0.8em}
+    \begin{minipage}{.4\textwidth}
+      \setlength{\parindent}{1.18em}
+      \indent#2
+    \end{minipage}
+  }
+  \begin{minipage}{.1\textwidth}
+    \hfill\par
+  \end{minipage}
+  \adjustbox{valign=t}
+  {
+    \begin{minipage}{.5\textwidth}  
+      \centering
+      \includegraphics[width=#1\textwidth]{#3}
+      \captionof{figure}{#4}
+      \label{#5}
+    \end{minipage}
+  }
+}
+

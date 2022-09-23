@@ -1,0 +1,338 @@
+In this work I deployed a Quantum Variational Monte Carlo method with a simple 2 parameters trial wave function, using the well-tested Metropolis algorithm.
+I improved the code in several ways to reduce the computation time, calculating the energy for more parameters configurations at the time using the reweighing method and using improved algorithms for updating matrices and calculating ratios between determinants.
+Furthermore I deployed the Davidon-Fletcher-Powell method for automatic minimization of the Energy.
+
+\section{The scaled Hamiltonian}
+
+The Hamiltonian of a Quantum dot in zero magnetic field is given by the three terms: kinetic, confinement and interaction.
+Written in CGS units reads
+
+\begin{equation}
+  \mc{H}(\vec{r_1},\dots,\vec{r_N}) = \sum_{i=1}^N -\dfrac{\hbar^2\nabla_i^2}{2m^*} + \sum_{i=1}^N V_{conf}(\vec{r_i}) + \sum_{i<j}\dfrac{e^2}{\epsilon}\dfrac{1}{\norm{\vec{r_i}-\vec{r_j}}}.
+  \label{HamiltonianCGS}
+\end{equation}
+
+The most common confinement potential used in literature for circular Q-dots is the parabolic confinement, so that the single particle eigenfunctions are well-known and simple.
+Thus e can write the confinement as $V_{conf}(\vec{r_i})=\frac{1}{2}m^*\omega r_i^2$.
+
+In the previous formulas I used the electron effective mass $m^*$ instead of the proper electron mass to correct the fact that I will consider a 2-dimensional system.
+For example if we consider a GaAs Q-dot the effective mass is $m^*=0.067m_e$ and the dielectric constant $\epsilon=12.4$\cite{Pederiva2000}.
+
+The most convenient choice for scaling \autoref{HamiltonianCGS} is to use the effective atomic units defined by setting $\hbar^2=m^*=\frac{e^2}{\epsilon}=1$, namely atomic units rescaled for $m^*$ and $\epsilon$.
+For the GaAs Q-dot we have the effective Bohr radius $a^*_0=a_0\frac{\epsilon m_e}{m^*}=\SI{97.93}{\angstrom}$ and the effective Hartree $H^*=H\frac{m^*}{\epsilon^2m_e}=\SI{3.32}{meV}$.
+
+Finally I will only consider $\omega=1$ for the parabolic potential.
+At the end the scaled Hamiltonian would read
+
+\begin{equation}
+  \mc{H}(\vec{r_1},\dots,\vec{r_N}) = \sum_{i=1}^N -\dfrac{\nabla_i^2}{2} + \sum_{i=1}^N \dfrac{1}{2}r_i^2 + \sum_{i<j}\dfrac{1}{\norm{\vec{r_i}-\vec{r_j}}}.
+  \label{Hamiltonian}
+\end{equation}
+
+\section{The trial wave function}
+
+\subsection{Single particle orbitals}
+
+The solutions of the 2-dimensional harmonic potential for one particle are well known, and can be written in terms of Hermite polynomials as
+
+\begin{equation}
+  \Phi_{n_x,n_y}(x,y)=A(n_x,n_y)H_{n_x}H_{n_y}e^{-\frac{1}{2}(x^2+y^2)}
+\end{equation}
+
+Where $A(n_x,n_y)$ is a normalization constant that will cancel out in the computation of the acceptance probability and local energy.
+The associated energies are $E_{n_x,n_y}=\hbar\omega(n_x+n_y+1)$.
+
+We can also find a common basis for the Hamiltonian and the angular momentum $\vec{L}=L_z\hat{z}$.
+The derivation can be found in Ref\cite{mplhone} and yields the following wave functions written in polar coordinates:
+
+\begin{equation}
+  \Phi_{n,m}(r,\phi)=A(n,m)e^{im\phi}r^{\norm{m}}L_{n'}^{\norm{m}}(r^2)e^{-\frac{1}{2}r^2}
+\end{equation}
+
+Where $L_{n'}(r^2)$ are the Laguerre polynomials, $n=0,1,...$ is the shell number, $m$ is the angular momentum quantum number, with possible values $m=0,\pm1,\pm2,...$ and $n'=\frac{n-m}{2}$.
+The corresponding energies are $E_n=\hbar\omega(n+1)$.
+
+\subsection{Slater determinants}
+
+To describe systems of fermions we usually write the total wave function as a sum of Slater determinants:
+
+\begin{equation}
+  \Psi(\vec{r_1},\dots,\vec{r_N})=\sum_i c_i |D_i|
+\end{equation}
+
+Where $c_i$ are in general complex coefficients.
+In our case we will consider only one Slater determinants built with the single particle states of lower energies in order to find the ground state. %TODO sure?
+In addition, as pointed out in Ref\cite{larsevind,notesOslo}, since our Hamiltonian is spin-independent we can split the Slater determinants in 2 smaller determinants for spin-up and for spin-down particles:
+
+\begin{equation}
+  |D|=\dfrac{1}{(N/2)!}|D^\up||D^\down|
+\end{equation}
+
+Where $D^\up$ and $D^\down$ are the matrices built respectively  with the orbitals of the spin-up and spin-down particles.
+In \autoref{Slaterorbitals} are presented all the studied configurations with the building orbitals chosen from the single particle states of lowest energy compatible with the Pauli Exclusion Principle.
+Notice that for $N=4$ there are 3 possible configurations for the total angular momentum $L$ and the total spin $S$, so we have to consider them separately because we expect 3 different energies.
+In particular we can see which configuration correspond with the ground state and if the Hund's rules are satisfied.
+
+\begin{table}[h]
+  \centering
+  \begin{tabular}{c|c|c|c|c}
+    \toprule
+    $N$ & $L$ & $S$ & $\Phi$ for $D^{\up}$ & $\Phi$ for $D^{\down}$ \\
+    \hline
+    $2$ & $0$ & $0$ & $\Phi_{0,0}$ & $\Phi_{0,0}$ \\
+    $3$ & $1$ & $1/2$ & $\Phi_{0,0},\Phi_{1,1}$ & $\Phi_{0,0}$ \\
+    $4$ & $0$ & $0$ & $\Phi_{0,0},\Phi_{1,1}$ & $\Phi_{0,0},\Phi_{1,-1}$ \\
+    $4$ & $2$ & $0$ & $\Phi_{0,0},\Phi_{1,1}$ & $\Phi_{0,0},\Phi_{1,1}$ \\
+    $4$ & $0$ & $1$ & $\Phi_{0,0},\Phi_{1,1},\Phi_{1,-1}$ & $\Phi_{0,0}$ \\
+    $5$ & $1$ & $1/2$ & $\Phi_{0,0},\Phi_{1,1},\Phi_{1,-1}$ & $\Phi_{0,0},\Phi_{1,1}$ \\
+    $6$ & $0$ & $0$ & $\Phi_{0,0},\Phi_{1,1},\Phi_{1,-1}$ & $\Phi_{0,0},\Phi_{1,1},\Phi_{1,-1}$ \\
+    \bottomrule
+  \end{tabular}
+  \caption{Slater determinants building orbitals for N from 2 to 6 particles}
+  \label{Slaterorbitals}
+\end{table}
+
+\subsection{The Pade-Jastrow factor}
+
+In the Hartree-Fock approach one would include some variational parameters in the component orbitals of the determinants and write the trial wave function as a single Slater determinant.
+Another largely used method to describe the interaction, and the choice of mine, is to multiply for an explicit correlation factor $J(\vec{r_1},\dots,\vec{r_N})$ usually called Jastrow function.
+This approach has already been deployed with success for Quantum dots (see for example Refs\cite{Harju1999,Harju2005,Pederiva2000,Colletti2002}).
+The most commonly used is the Pade-Jastrow wave function\cite{MCMAbInitioQuantumChemistry}, that consider only the 2-body interaction, and can in general be written as
+
+\begin{equation}
+  J = \prod_{i<j}e^{g(r_{ij})}
+\end{equation}
+
+With $r_{ij}=\norm{\vec{r_i}-\vec{r_j}}$ and
+
+\begin{equation}
+  g(r_{ij})= \dfrac{\displaystyle\sum_{k=1}^n a_kr_{ij}^k}{1 +\displaystyle\sum_{k=1}^n b_kr_{ij}^k}
+\end{equation}
+
+This function is symmetric in order to keep the antisymmetry of the total wave function.
+In this work I will consider only a Linear Pade-Jastrow function with 2 variational parameters $a$ and $b$:
+
+\begin{equation}
+  g(r_{ij})= \dfrac{ar_{ij}}{1+br_{ij}}
+\end{equation}
+
+\subsection{The total trial wave function}
+
+Finally we can write the total trial wave function as the product of a single Slater determinant and a simple Pade-Jastrow factor.
+Without the normalization constants that cancel out in our computations it reads
+
+\begin{equation}
+  \Psi_T(\vec{r_1},\dots,\vec{r_N})=|D^\up||D^\down|J
+  \label{trial}
+\end{equation}
+
+\section{Computational optimizations of the Metropolis algorithm}
+\label{impalgo}
+
+\subsection{computation of the acceptance probability}
+\label{PaccComp}
+
+Using the Metropolis algorithm we have to deal with the computation of the acceptance probability in \autoref{Pacc}, that in Quantum Variational Monte Carlo, recalling \autoref{Qprob} and \autoref{trial}, means the evaluation of the following ratio:
+
+\begin{equation}
+\dfrac{|D^\up(\bm{R}_{new})|}{|D^\up(\bm{R}_{old})|} \> \dfrac{|D^\down(\bm{R}_{new})|}{|D^\down(\bm{R}_{old})|} \> \dfrac{J(\bm{R}_{new})}{J(\bm{R}_{old})}.
+\end{equation}
+
+First thing that we have to notice is that we move one particle at the time and so, depending on whether this particle has spin up or down, only one of the 2 determinant ratio has to be evaluated.
+Further more only one row of the matrix $D^\alpha$ has changed.
+Under these considerations an efficient algorithm is given below.
+The full derivation is available in Ref\cite{notesOslo,larsevind}.
+
+\begin{equation}
+  \dfrac{|D^\alpha(\bm{R}_{new})|}{|D^\alpha(\bm{R}_{old})|}=\sum_{j=1}^{n_{\alpha}}\Phi_{j}(\vec{r}_i^{\>new})D^{\alpha^{-1}}_{ji}(\bm{R}_{old})
+  \label{detratio}
+\end{equation}
+
+Where the particle that has been moved is the $i$-th, $n_\alpha$ is the number of electrons in the matrix $D^{\alpha}$ and $D^{\alpha^{-1}}$ is its inverse.
+
+For the Jastrow function again we consider only the terms that has changed. With simple algebraic operations we can find
+
+\begin{equation}
+  \dfrac{J(\bm{R}_{new})}{J(\bm{R}_{old})}=\exp\left(\sum_{j=1}^{i-1}\left(g(r_{ij}^{new})-g(r_{ij}^{old})\right)
+  + \sum_{j=i+1}^N\left(g(r_{ji}^{new})-g(r_{ji}^{old})\right)\right)
+\end{equation}
+
+\subsection{Calculating the local energy}
+
+When calculating the local energy defined in \autoref{Eloc} we have to deal the following expression:
+
+\begin{equation}
+  E_{loc}(\bm{R})=\sum_{i=1}^N -\frac{1}{2}\dfrac{\nabla_i^2\Psi_T}{\Psi_T} +\sum_{i=1}^N \frac{1}{2}r_i^2 +\sum_{i<j}\dfrac{1}{r_{ij}}
+\end{equation}
+
+The kinetic part happens to be the only challenging part.
+Using the Leibniz rule we can split the problem in the evaluation of 4 ratios:
+
+\begin{equation}
+  \dfrac{\nabla_i^2\Psi_T}{\Psi_T}=\dfrac{\nabla_i^2|D^\alpha(\bm{R})|}{|D^\alpha(\bm{R})|} + \dfrac{\nabla_i^2J(\bm{R})}{J(\bm{R})} + 2\dfrac{\nabla_i |D^\alpha|}{|D^\alpha(\bm{R})|}\cdot\dfrac{\nabla_iJ(\bm{R})}{J(\bm{R})}
+\end{equation}
+
+Since $\nabla_i$ only affect the coordinates of the i-th particle and hence only one row of one matrix $D^\alpha$ and only few term of the Jastrow factor.
+The solution of the determinant part is given in Ref\cite{notesOslo} and follows from a simple generalization of \autoref{detratio}.
+
+\begin{equation}
+  \dfrac{\nabla_i|D^\alpha(\bm{R})|}{|D^\alpha(\bm{R})|}=\sum_{j=1}^{n_{\alpha}}\nabla_i\Phi_{j}(\vec{r}_i)D^{\alpha^{-1}}_{ji}(\bm{R})
+  \label{detratio}
+\end{equation}
+
+\begin{equation}
+  \dfrac{\nabla_i^2|D^\alpha(\bm{R})|}{|D^\alpha(\bm{R})|}=\sum_{j=1}^{n_{\alpha}}\nabla_i^2\Phi_{j}(\vec{r}_i)D^{\alpha^{-1}}_{ji}(\bm{R})
+  \label{detratio}
+\end{equation}
+
+The correlation part can also be simplified to the formulas below.
+Again the full derivation can be found in Ref\cite{notesOslo}.
+
+\begin{equation}
+  \dfrac{\nabla_iJ(\bm{R})}{J(\bm{R})}=\sum_{j=1}^{i-1}\dfrac{\vec{r_i}-\vec{r_j}}{r_{ij}}\dfrac{\partial g(r_{ij})}{\partial r_{ij}}
+  + \sum_{j=i+1}^N\dfrac{\vec{r_i}-\vec{r_j}}{r_{ji}}\dfrac{\partial g(r_{ji})}{\partial r_{ji}}
+\end{equation}
+
+\begin{equation}
+  \dfrac{\nabla_i^2J(\bm{R})}{J(\bm{R})}=\left(\dfrac{\nabla_i^2J(\bm{R})}{J(\bm{R})}\right)^2
+  + \sum_{j=1}^{i-1}\left[ \dfrac{d-1}{r_{ij}}\dfrac{\partial g(r_{ij})}{\partial r_{ij}} + \dfrac{\partial^2g(r_{ij})}{\partial r_{ij}^2} \right]
+  + \sum_{j=i+1}^N\left[ \dfrac{d-1}{r_{ji}}\dfrac{\partial g(r_{ji})}{\partial r_{ji}} + \dfrac{\partial^2g(r_{ji})}{\partial r_{ji}^2} \right]
+\end{equation}
+
+Where $d$ is the dimension of the space, $d=2$ in our case.
+For our $g(r_{ij})$ the derivatives are the following:
+
+\begin{equation}
+  \dfrac{\partial g(r_{ij})}{\partial r_{ij}}=\dfrac{a}{(1+br_{ij})^2}
+\end{equation}
+
+\begin{equation}
+  \dfrac{\partial^2 g(r_{ij})}{\partial r_{ij}^2}=\dfrac{-2ab}{(1+br_{ij})^3}
+\end{equation}
+
+\subsection{Updating inverse of matrices}
+
+Every time a move attempt is accepted, say the particle $i$, we need to update the inverse of the matrix $D^\alpha$.
+Updating the matrix and recalculating the inverse would be too time expensive.
+A much more efficient algorithm for updating the inverse is given in Ref\cite{notesOslo,MCMAbInitioQuantumChemistry,larsevind}:
+
+\begin{equation}
+  D_{kj}^{new^{-1}}=
+  \begin{cases}
+    D_{kj}^{\alpha^{-1}}(\bm{R}_{old})-\frac{D_{ki}^{\alpha^{-1}}(\bm{R}_{old})}{\bm{R}_D}\displaystyle\sum_{l=1}^{n_{\alpha}} \Phi_l(\vec{r_i^{new}})D_{lj}^{\alpha^{-1}}(\bm{R}_{old}) & \mbox{ if }j\neq i \\
+    \frac{D_{ki}^{\alpha^{-1}}(\bm{R}_{old})}{\bm{R}_D} & \mbox{ if }j=i \\
+  \end{cases}
+\end{equation}
+
+Where $R_{D}$ is the ratio defined in \autoref{detratio}.
+
+\section{Reweighing method}
+\label{reweight}
+
+Lets call $\bm{\alpha}$ our set of variational parameters and $\bm{\alpha}'=\bm{\alpha} +\delta\bm{\alpha}$ with slightly changed values.
+The expectation value for the local energy for the set $\bm{\alpha}'$ is then given by
+
+\begin{equation}
+  \expval{E_{loc}(\bm{\alpha}')}=\dfrac{\int \sqmod{\Psi_T(\bm{R};\bm{\alpha}')}E_{loc}(\bm{R};\bm{\alpha}')d\bm{R}}{\int \sqmod{\Psi_T(\bm{R};\bm{\alpha}')}d\bm{R}}
+\end{equation}
+
+or we may write
+
+\begin{equation}
+  \expval{E_{loc}(\bm{\alpha}')}=\dfrac{\int \frac{\sqmod{\Psi_T(\bm{R};\bm{\alpha}')}}{\sqmod{\Psi_T(\bm{R};\bm{\alpha})}}\sqmod{\Psi_T(\bm{R};\bm{\alpha})}E_{loc}(\bm{R};\bm{\alpha}')d\bm{R}}{\int \frac{\sqmod{\Psi_T(\bm{R};\bm{\alpha}')}}{\sqmod{\Psi_T(\bm{R};\bm{\alpha})}}\sqmod{\Psi_T(\bm{R};\bm{\alpha})}d\bm{R}}
+\end{equation}
+
+This last equation is telling us that we could use configurations generated from the probability $\mc{P}(\bm{R};\bm{\alpha})$ and still calculate the expected value for the parameters $\bm{\alpha}'$ by simply reweighing the samples.
+The mean we will compute then is simply a weighted average\cite{Pederiva2017}:
+
+\begin{equation}
+  \expval{E_{loc}(\bm{\alpha}')}\simeq\dfrac{\sum_k\frac{\sqmod{\Psi_T(\bm{R}_k;\bm{\alpha}')}}{\sqmod{\Psi_T(\bm{R}_k;\bm{\alpha})}}E_{loc}(\bm{R}_k;\bm{\alpha}')}{\sum_k\frac{\sqmod{\Psi_T(\bm{R}_k;\bm{\alpha}')}}{\sqmod{\Psi_T(\bm{R}_k;\bm{\alpha})}}}
+\end{equation}
+
+Where the $\bm{R}_k$ are sampled using the set of parameters $\bm{\alpha}$.
+This is called reweighing methods, and it allows to reduce greatly the amount of time needed to find the minimum, allowing faster exploration of the parameter space and speeding up the computation of gradients in the parameters space.
+Furthermore gradients computed with this technique are much more accurate because the statisical fluctuations of $\expval{E_{loc}(\bm{\alpha})}$ are exactly the same of the one of $\expval{E_{loc}(\bm{\alpha}')}$.
+The access to gradients opens the possibility of using algorithms to find minima such as the Gradient Descent, the Conjugate Gradient and all theirs variations.
+
+\section{DFP method}
+\label{DFP}
+
+For finding the parameters that minimize the energy one would like to automate the process rather than varying manually the parameters.
+In this thesis I will use the Davidon-Fletcher-Powell (DFP) algorithm\cite{larsevind,Fletcher2000}.
+This algorithm is based on the conjugate gradient method and the steepest descent.
+Here I will only give a basic idea of the algorithm while linking the full derivation Ref\cite{Fletcher2000}.
+Consider the Taylor expansion of the function $f(\bm{\alpha})$ around $\bm{\alpha}_i$:
+
+\begin{equation}
+  f(\bm{\alpha})=f(\bm{\alpha}_i) + \bm{b}\cdot\bm{\delta} + \frac{1}{2}\bm{\delta}\cdot\bm{A\delta}
+\end{equation}
+
+Having defined
+
+\begin{equation}
+  \bm{\delta}=\bm{\alpha}-\bm{\alpha}_i,\>\bm{b}=\nabla f(\bm{\alpha}_i),\>A_{kl}=\dfrac{\partial^2f}{\partial\alpha_i^k\partial\alpha_i^l}
+\end{equation}
+
+Doing this we are basically approximating our function with a quadratic one.
+In this second order approximation the gradient can be written as
+
+\begin{equation}
+  \nabla f(\bm{\alpha}) = \bm{b} + \bm{A(\alpha-\alpha_i)}
+  \label{gradexp}
+\end{equation}
+
+And therefore minimizing $f$ is equivalent to solve a linear system.
+In Newton's method one would set $\nabla f(\bm{\alpha}_{i+1})=0$ in order to find the next iteration point.
+In this case we choose the direction as in Newton's method:
+
+\begin{equation}
+  \bm{s}_i=-\bm{A}^{-1}\nabla f(\bm{\alpha}_i)
+\end{equation}
+
+And the next iteration point is given by
+
+\begin{equation}
+  \bm{\alpha}_{i+1}=\bm{\alpha}_i+\gamma_i\bm{s}_i
+\end{equation}
+
+Where the parameter $\gamma$ is found through the 1-dimensional minimization of $f(\bm{\alpha}_i+\gamma_i\bm{s}_i)$.
+For this minimization I will use the Newton's method.
+
+Furthermore instead of using the true Hessian of $f$ the DFP method actually uses an approximation of its inverse usually named $\bm{H}_i$.
+The class of algorithms that uses approximations for the Hessian inverse are called \textit{quasi-Newton} methods or also \textit{variable metric} methods.
+The first advantage of using such methods is the fact that the approximate Hessian is built to be positive definite, while the true Hessian could not be so, and thus it prevents from reaching maxima instead of minima and obviously we do not need to compute the Hessian.
+For $H_0$ I will simply use $I_2$ that is the same as choosing the steepest descent direction for the first iteration.
+The algorithm for updating $H_i$ is taken from Refs\cite{larsevind,Fletcher2000,Griffin2012}:
+
+\begin{equation}
+  \bm{H}_{i+1}=\bm{H}_i + \dfrac{\bm{\delta}\otimes\bm{\delta}}{\bm{\delta}\cdot\bm{\xi}} - \dfrac{(\bm{H}_i\bm{\xi})\otimes(\bm{H}_i\bm{\xi})}{\bm{\xi}\cdot\bm{H}_i\bm{\xi}}
+\end{equation}
+
+Where $\bm{\delta}=\bm{\alpha}_{i+1}-\bm{\alpha}_i$, $\bm{\xi}=\nabla f(\bm{\alpha}_{i+1})-\nabla f(\bm{\alpha}_i)$ and $\otimes$ is the outer product.
+Summarizing everything the algorithm looks like the following\cite{Fletcher2000,Griffin2012}:
+
+\begin{enumerate}
+  \item set $\bm{s}_i=-\bm{H}_i\nabla f(\bm{\alpha}_i)$,
+  \item line search along $\bm{s}_i$ giving $\bm{\alpha}_{i+1}=\bm{\alpha}_i + \gamma_i\bm{s}_i$,
+  \item update $\bm{H}_i$ giving $\bm{H}_{i+1}$.
+\end{enumerate}
+
+The algorithm is proven to find the exact minimum in $n$ iteration, like the conjugate gradient method, for quadratic $n$-dimensional functions and it is able to keep the number of iteration low for more complex functions.
+
+Finally, taking advantage of the reweighing method (\autoref{reweight}), I use a  2-dimensional 5-points stencil formula to compute gradients:
+
+\begin{equation}
+  \dfrac{\partial f(\bm{\alpha})}{\partial \alpha^k}=\dfrac{f(\bm{\alpha}+\bm{\delta}_k)-f(\bm{\alpha}-\bm{ \delta}_k)}{2d\alpha^k},
+\end{equation}
+
+Where $\bm{\delta}_k=\begin{pmatrix} \vdots \\ \delta\alpha^k \\ \vdots \end{pmatrix}$, and 1-dimensional 5-points stencil formulas to compute linear derivatives:
+
+\begin{equation}
+  \dfrac{d}{d\gamma}\Phi(\gamma)=\dfrac{\Phi(\gamma-2\delta\gamma)-8\Phi(\gamma-\delta\gamma)+8\Phi(\gamma+\delta\gamma)-\Phi(\gamma+2\delta\gamma)}{12\delta\gamma}
+\end{equation}
+
+\begin{equation}
+  \dfrac{d^2}{d\gamma^2}\Phi(\gamma)=\dfrac{-\Phi(\gamma-2\delta\gamma)+16\Phi(\gamma-\delta\gamma)-30\Phi(\gamma)+16\Phi(\gamma+\delta\gamma)-\Phi(\gamma+2\delta\gamma)}{12\delta\gamma^2}
+\end{equation}
+
+With $\Phi(\gamma)=f(\bm{\alpha}+\gamma\bm{s})$.

@@ -1,0 +1,20 @@
+In this thesis I developed a \texttt{C++} program that deploy the quantum variational Monte Carlo method to calculate the ground states of 2-dimensional circular quantum dots.
+In particular I considered Q-dots with a number of electrons ranging from 2 to 6 with a parabolic confinement.
+The program has been improved with several optimized algorithms ot compute acceptance probability and methods like the reweighing method to decrease the overall computation time.
+These improvements all together allowed the program to have a time scaling with $N$ of $\frac{N^2}{4}$, making it suitable for bigger systems as well.
+Furthermore I included the Davidon-Fletcher-Powell minimization algorithm that provides a much more intelligent way of finding minima than using variational plots.
+The use of this method, together with the reweighing methods to compute gradients and derivatives, allowed to find the minimum of the energy in just $5-10$ iterations.
+This was possible also because I already guessed the points using variational plots.
+
+The results I found are in good agreement with those of Refs\cite{larsevind,PedersenLohne2011}, but I was not able to validate the results for open shell systems.
+In particular the main weakness of my model was to use only one Slater determinant in the trial wave function.
+This approximation is good for all the considered configurations, except for $N=4,\>L=0,\>S=0$ because in this case the determinantial part is not an eigenvector of $S^2$\cite{Colletti2002}.
+
+Another possible cause of errors is to have not considered cusp conditions in our trial wave functions. These are conditions made to the trial wave function in order to prevent possible singularities on the energy when the relative distance becomes zero.
+For a 2-dimensional system, using the jastrow factor, they lead to set the $a$ parameter to $1$ for anti-parallel spins particles and $1/3$ for parallel spins (derivation in Ref\cite{larsevind}).
+Anyway there are other works where cusp-conditions are not used, for example in Ref\cite{Harju1999}.
+
+Possible implementation of the code could then be the possibility of using more than one Slater determinant and the cusp conditions on the Jastrow factor.
+Furthermore one could use a much more general form for the Jastrow factor that might include implicity also multi-particles interaction as the one used in Ref\cite{Pederiva2000}.
+It would also be interesting to study system in a non-zero magnetic field, with a slightly modified Hamiltonian than the one in \autoref{Hamiltonian}.
+Finally from the pure computational point of view an improvement could be the support for parallel computing.
